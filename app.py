@@ -1,4 +1,4 @@
-import argparse, logging, shelve, os, cv2
+import argparse, logging, shelve, os, cv2, shutil
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -15,12 +15,15 @@ logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
 shelfFile = shelve.open('data')
-classifier_path = 'lbpcascade_facerecogniser.xml'
+classifier_path = 'facerecogniser.pkl'
 haarcascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+
+size = (64, 64)
 
 parser = argparse.ArgumentParser(description="Facial Recognition System")
 parser.add_argument('-a', '--add-face', metavar='name', help='name of the person to recognise')
 parser.add_argument('-c', '--configure', metavar='path', help='path to store cascade')
+parser.add_argument('-d', '--delete-face', metavar='name', help='name of the person to delete')
 parser.add_argument('-l', '--list', action='store_true', help='list out the faces the app recognises')
 parser.add_argument('-r', '--recognise', action='store_true', help='recognise the face')
 parser.add_argument('-x', '--reset', action='store_true', help='reset the application')
@@ -29,82 +32,92 @@ args = parser.parse_args()
 logger.info(args)
 
 # Configure
-if args.add_face is None and args.configure is not None and args.list == False and args.recognise == False and args.reset == False:
+if args.configure is not None:
     logger.info('Configuring')
-    if not os.path.exists('tmp'):
-        os.mkdir('tmp')
+    if not os.path.exists(str(args.configure)):
+        os.mkdir(str(args.configure))
     shelfFile['path'] = str(args.configure)
     logger.debug(f'Contents of shelve: {list(shelfFile.items())}')
     logger.info('Configured')
 
 # Add face
-elif args.add_face is not None and args.configure is None and args.list == False and args.recognise == False and args.reset == False:
+elif args.add_face is not None:
     if 'faces' not in shelfFile.keys():
         shelfFile['faces'] = []
-    logger.info('Adding Face')
-    logger.info('Starting to capture images')
-    cap = cv2.VideoCapture(0)
-    count = 0
-    while True:
-        ret, frame = cap.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        rects = haarcascade.detectMultiScale(gray) 
     
-        for (x,y,w,h) in rects: 
-            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)
-        cv2.imshow('frame', frame)
-        
-        if len(rects) !=0:
-            (x,y,w,h) = rects[0]
-            count += 1
-            logger.debug(f'saved{count}')
-            cv2.imwrite(f'tmp/{count}.png', gray[y:y+w, x:x+h])
-                
-        
-        if cv2.waitKey(1) & count == 250:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-    logger.info('images captured')
-    
-    logger.info('training started')
-    images = []
-    labels = []
-    for folderName, subfolders, filenames in os.walk('tmp'):
-        for filename in filenames:
-            images.append(cv2.imread(folderName + '/' + filename, 0))
-            labels.append(len(shelfFile['faces']))
-    
-    if not os.path.exists(shelfFile['path']+classifier_path):
-        classifier = cv2.face.LBPHFaceRecognizer_create()
-        classifier.train(images , np.array(labels))
-        classifier.save(shelfFile['path']+classifier_path)
+    if args.add_face in shelfFile['faces']:
+        logger.info('face already exists')
     else:
-        classifier = cv2.CascadeClassifier(shelfFile['path']+classifier_path)
-        classifier.update(images , np.array(labels))
-        classifier.save(shelfFile['path']+classifier_path)
+        os.mkdir(f'{shelfFile["path"]}/{args.add_face}')
+        logger.info('Adding Face')
+        logger.info('Starting to capture images')
+        cap = cv2.VideoCapture(0)
+        count = 0
+        while True:
+            ret, frame = cap.read()
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            rects = haarcascade.detectMultiScale(gray) 
         
-    shelfFile['faces'] = shelfFile['faces']+[str(args.add_face)]
-    logger.debug(shelfFile['faces'])
-    logger.info('training completed')
+            for (x,y,w,h) in rects: 
+                cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)
+            cv2.imshow('frame', frame)
+            
+            if len(rects) !=0:
+                (x,y,w,h) = rects[0]
+                count += 1
+                img = gray[y:y+w, x:x+h]
+                if img.shape < size:
+                    img = cv2.resize(img, size, interpolation=cv2.INTER_CUBIC)
+                else:
+                    img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+                img = cv2.equalizeHist(img)
+                cv2.imwrite(f'{shelfFile["path"]}/{args.add_face}/{count}.png', img)
+                
+                logger.debug(f'saved{count}')
+                
+            if cv2.waitKey(1) & count == 250:
+                break
+
+        cap.release()
+        cv2.destroyAllWindows()
+        logger.info('images captured')
+        
+        logger.info('training started')
+        images = []
+        labels = []
+        for folderName, subfolders, filenames in os.walk(shelfFile['path']):
+            for filename in filenames:
+                images.append(cv2.imread(folderName + '/' + filename, 0))
+                labels.append(len(shelfFile['faces']))
+        
+        
+            
+        shelfFile['faces'] = shelfFile['faces']+[str(args.add_face)]
+        logger.debug(shelfFile['faces'])
+        logger.info('training completed')
+    
+# Delete    
+elif args.delete_face is not None:
+    if args.delte_face in shelfFile['faces']:
+        shelfFile['faces'].remove(args.delte_face)
+        shutil.rmtree(shelfFile['path']+'/'+args.delete_face)
+        
     
 # List
-elif args.add_face is None and args.configure is None and args.list == True and args.recognise == False and args.reset == False:
+elif args.list == True:
     print(shelfFile['faces'])
     logger.info('Face List')
 
 # Recognise
-elif args.add_face is None and args.configure is None and args.list == False and args.recognise == True and args.reset == False:
+elif args.recognise == True:
     logger.info('Recognising Face')
 
-elif args.add_face is None and args.configure is None and args.list == False and args.recognise == False and args.reset == True:
+elif args.reset == True:
     logger.info('reseting application')
     shelfFile['faces'] = []
-    os.unlink(shelfFile['path']+classifier_path)
+    shutil.rmtree(shelfFile['path'])
     shelfFile['path'] = ''
     logger.info('application reset')
-    
     
 else:
     logger.info('Wrong Combination of Arguments')
