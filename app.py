@@ -18,8 +18,6 @@ shelfFile = shelve.open('data')
 classifier_path = 'facerecogniser.pkl'
 haarcascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-size = (64, 64)
-
 parser = argparse.ArgumentParser(description="Facial Recognition System")
 parser.add_argument('-a', '--add-face', metavar='name', help='name of the person to recognise')
 parser.add_argument('-c', '--configure', metavar='path', help='path to store cascade')
@@ -30,6 +28,28 @@ parser.add_argument('-x', '--reset', action='store_true', help='reset the applic
 args = parser.parse_args()
 
 logger.info(args)
+
+def preprocess(img, size=(64, 64)):
+    if img.shape < size:
+        img = cv2.resize(img, size, interpolation=cv2.INTER_CUBIC)
+    else:
+        img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+    img = cv2.equalizeHist(img)
+    return img
+    
+def prepareDataSet():
+    X = []
+    y = []
+
+    for folderName, subfolders, filenames in os.walk(shelfFile['path']):
+        for filename in filenames:
+            X.append(cv2.imread(os.path.join(folderName,filename), 0))
+            y.append(folderName.split('\\')[-1])
+    X.pop(0)
+    y.pop(0)
+    X = np.asarray(X)
+    y = np.asarray(y)
+    return X, y    
 
 # Configure
 if args.configure is not None:
@@ -65,14 +85,8 @@ elif args.add_face is not None:
             if len(rects) !=0:
                 (x,y,w,h) = rects[0]
                 count += 1
-                img = gray[y:y+w, x:x+h]
-                if img.shape < size:
-                    img = cv2.resize(img, size, interpolation=cv2.INTER_CUBIC)
-                else:
-                    img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
-                img = cv2.equalizeHist(img)
+                img = preprocess(gray[y:y+w, x:x+h])
                 cv2.imwrite(f'{shelfFile["path"]}/{args.add_face}/{count}.png', img)
-                
                 logger.debug(f'saved{count}')
                 
             if cv2.waitKey(1) & count == 250:
@@ -83,16 +97,14 @@ elif args.add_face is not None:
         logger.info('images captured')
         
         logger.info('training started')
-        images = []
-        labels = []
-        for folderName, subfolders, filenames in os.walk(shelfFile['path']):
-            for filename in filenames:
-                images.append(cv2.imread(folderName + '/' + filename, 0))
-                labels.append(len(shelfFile['faces']))
-        
-        
-            
-        shelfFile['faces'] = shelfFile['faces']+[str(args.add_face)]
+        # images = []
+        # labels = []
+        # for folderName, subfolders, filenames in os.walk(shelfFile['path']):
+        #     for filename in filenames:
+        #         images.append(cv2.imread(folderName + '/' + filename, 0))
+        #         labels.append(len(shelfFile['faces']))
+
+        # shelfFile['faces'] = shelfFile['faces']+[str(args.add_face)]
         logger.debug(shelfFile['faces'])
         logger.info('training completed')
     
@@ -101,17 +113,40 @@ elif args.delete_face is not None:
     if args.delte_face in shelfFile['faces']:
         shelfFile['faces'].remove(args.delte_face)
         shutil.rmtree(shelfFile['path']+'/'+args.delete_face)
-        
+    # TODO: Retrain    
     
 # List
 elif args.list == True:
-    print(shelfFile['faces'])
     logger.info('Face List')
+    print(shelfFile['faces'])
 
 # Recognise
 elif args.recognise == True:
     logger.info('Recognising Face')
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        rects = haarcascade.detectMultiScale(gray) 
 
+        
+        if len(rects) !=0:
+            (x,y,w,h) = rects[0]   
+            img = preprocess(gray[y:y+w, x:x+h])
+            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2) 
+            
+            # TODO Predictions
+            
+            
+        cv2.imshow('frame', frame)
+        
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+# Reset
 elif args.reset == True:
     logger.info('reseting application')
     shelfFile['faces'] = []
@@ -120,7 +155,7 @@ elif args.reset == True:
     logger.info('application reset')
     
 else:
-    logger.info('Wrong Combination of Arguments')
+    logger.info('Invalid Arguments')
 
 logger.debug(f'ShelfFile {list(shelfFile.items())}')
 shelfFile.close()
