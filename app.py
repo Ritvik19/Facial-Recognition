@@ -148,16 +148,19 @@ elif args.recognise == True:
             cv2.imshow('frame', frame)
             (x,y,w,h) = rects[0]   
             img = preprocess(gray[y:y+w, x:x+h])
-            gray = gray.astype(np.float)
-            gray /= 255
-            gray = gray.reshape(-1, 64*64)
+            img = img.astype(np.float)
+            img /= 255
+            img = img.reshape(-1, 64*64)
             
             model = pickle.load(open(shelfFile['path']+classifier_path, 'rb'))
-            pred = model.predict(gray)
-        
-        cv2.putText(frame, pred[0], (x, y),
+            pred = model.predict(img)
+        try:
+            cv2.putText(frame, pred[0], (x, y),
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
-        cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)     
+            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)
+        except:
+            pass
+        
         cv2.imshow('frame', frame)
         
         if cv2.waitKey(1) & 0xFF == 27:
