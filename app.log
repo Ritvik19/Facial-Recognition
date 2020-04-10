@@ -1,0 +1,5 @@
+2020-04-10 18:32:21,853 : INFO  : Namespace(add_face=None, configure=None, delete_face=None, list=False, recognise=False, reset=True)
+2020-04-10 18:32:21,854 : INFO  : reseting application
+2020-04-10 18:32:22,155 : INFO  : application reset
+2020-04-10 18:32:22,168 : DEBUG  : ShelfFile [('faces', []), ('path', '')]
+2020-04-10 18:32:22,183 : INFO  : Application is exiting

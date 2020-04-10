@@ -1,5 +1,7 @@
-import argparse, logging, shelve, os, cv2, shutil
+import argparse, logging, shelve, os, cv2, shutil, pickle
 import numpy as np
+from sklearn.svm import SVC
+from time import sleep
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -47,11 +49,12 @@ def prepareDataSet():
             y.append(folderName.split('\\')[-1])
     X.pop(0)
     y.pop(0)
-    X = np.asarray(X)
+    X = np.asarray(X).astype(np.float)
     y = np.asarray(y)
-    return X, y    
+    X /= 255
+    return X.reshape(-1, 64*64), y  
 
-# Configure
+# 1 Configure
 if args.configure is not None:
     logger.info('Configuring')
     if not os.path.exists(str(args.configure)):
@@ -60,7 +63,7 @@ if args.configure is not None:
     logger.debug(f'Contents of shelve: {list(shelfFile.items())}')
     logger.info('Configured')
 
-# Add face
+# 2 Add face
 elif args.add_face is not None:
     if 'faces' not in shelfFile.keys():
         shelfFile['faces'] = []
@@ -68,6 +71,7 @@ elif args.add_face is not None:
     if args.add_face in shelfFile['faces']:
         logger.info('face already exists')
     else:
+        faces = shelfFile['faces']
         os.mkdir(f'{shelfFile["path"]}/{args.add_face}')
         logger.info('Adding Face')
         logger.info('Starting to capture images')
@@ -97,30 +101,41 @@ elif args.add_face is not None:
         logger.info('images captured')
         
         logger.info('training started')
-        # images = []
-        # labels = []
-        # for folderName, subfolders, filenames in os.walk(shelfFile['path']):
-        #     for filename in filenames:
-        #         images.append(cv2.imread(folderName + '/' + filename, 0))
-        #         labels.append(len(shelfFile['faces']))
-
-        # shelfFile['faces'] = shelfFile['faces']+[str(args.add_face)]
+        if len(faces) != 0:
+            X, y = prepareDataSet()
+            model = SVC(kernel='linear', probability=True)
+            model.fit(X, y)
+            pickle.dump(model, open(shelfFile['path']+classifier_path, 'wb'))
+        
+        faces.append(args.add_face)
+        faces.sort()
+        
+        shelfFile['faces'] = faces
+        
         logger.debug(shelfFile['faces'])
         logger.info('training completed')
     
-# Delete    
+# 3 Delete    
 elif args.delete_face is not None:
-    if args.delte_face in shelfFile['faces']:
-        shelfFile['faces'].remove(args.delte_face)
+    logger.info('Deleting Face')
+    if args.delete_face in shelfFile['faces']:
+        faces = shelfFile['faces']
+        faces.remove(str(args.delete_face))
+        shelfFile['faces'] = faces
         shutil.rmtree(shelfFile['path']+'/'+args.delete_face)
-    # TODO: Retrain    
+        if len(faces) > 1:
+            X, y = prepareDataSet()
+            model = SVC(kernel='linear', probability=True)
+            model.fit(X, y)
+            pickle.dump(model, open(shelfFile['path']+classifier_path, 'wb'))
+    logger.info('Face Deleted Successfully')
     
-# List
+# 4 List
 elif args.list == True:
     logger.info('Face List')
     print(shelfFile['faces'])
 
-# Recognise
+# 5 Recognise
 elif args.recognise == True:
     logger.info('Recognising Face')
     cap = cv2.VideoCapture(0)
@@ -128,16 +143,21 @@ elif args.recognise == True:
         ret, frame = cap.read()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rects = haarcascade.detectMultiScale(gray) 
-
         
         if len(rects) !=0:
+            cv2.imshow('frame', frame)
             (x,y,w,h) = rects[0]   
             img = preprocess(gray[y:y+w, x:x+h])
-            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2) 
+            gray = gray.astype(np.float)
+            gray /= 255
+            gray = gray.reshape(-1, 64*64)
             
-            # TODO Predictions
-            
-            
+            model = pickle.load(open(shelfFile['path']+classifier_path, 'rb'))
+            pred = model.predict(gray)
+        
+        cv2.putText(frame, pred[0], (x, y),
+                        cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+        cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)     
         cv2.imshow('frame', frame)
         
         if cv2.waitKey(1) & 0xFF == 27:
@@ -146,7 +166,7 @@ elif args.recognise == True:
     cap.release()
     cv2.destroyAllWindows()
 
-# Reset
+# 6 Reset
 elif args.reset == True:
     logger.info('reseting application')
     shelfFile['faces'] = []
