@@ -1,7 +1,6 @@
-import argparse, logging, shelve, os, cv2, shutil, pickle
+import argparse, logging, shelve, os, shutil, pickle, cv2
 import numpy as np
 from sklearn.svm import SVC
-from time import sleep
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -47,8 +46,9 @@ def prepareDataSet():
         for filename in filenames:
             X.append(cv2.imread(os.path.join(folderName,filename), 0))
             y.append(folderName.split('\\')[-1])
-    X.pop(0)
-    y.pop(0)
+    if len(y) % 250 == 1:
+        X.pop(0)
+        y.pop(0)
     X = np.asarray(X).astype(np.float)
     y = np.asarray(y)
     X /= 255
@@ -144,9 +144,9 @@ elif args.recognise == True:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rects = haarcascade.detectMultiScale(gray) 
         
-        if len(rects) !=0:
+        for r in rects:
             cv2.imshow('frame', frame)
-            (x,y,w,h) = rects[0]   
+            (x,y,w,h) = r
             img = preprocess(gray[y:y+w, x:x+h])
             img = img.astype(np.float)
             img /= 255
