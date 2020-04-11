@@ -19,7 +19,7 @@ shelfFile = shelve.open('data')
 classifier_path = 'facerecogniser.pkl'
 haarcascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-parser = argparse.ArgumentParser(description="Facial Recognition System")
+parser = argparse.ArgumentParser(description="Face Recognition System")
 parser.add_argument('-a', '--add-face', metavar='name', help='name of the person to recognise')
 parser.add_argument('-c', '--configure', metavar='path', help='path to store cascade')
 parser.add_argument('-d', '--delete-face', metavar='name', help='name of the person to delete')
@@ -138,6 +138,7 @@ elif args.list == True:
 # 5 Recognise
 elif args.recognise == True:
     logger.info('Recognising Face')
+    model = pickle.load(open(shelfFile['path']+classifier_path, 'rb'))
     cap = cv2.VideoCapture(0)
     while True:
         ret, frame = cap.read()
@@ -152,7 +153,6 @@ elif args.recognise == True:
             img /= 255
             img = img.reshape(-1, 64*64)
             
-            model = pickle.load(open(shelfFile['path']+classifier_path, 'rb'))
             pred = model.predict(img)
         try:
             cv2.putText(frame, pred[0], (x, y),

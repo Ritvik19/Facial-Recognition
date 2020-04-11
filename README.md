@@ -1,7 +1,14 @@
 # Facial-Recognition
 
+Commandline Interface based Face Recognition System
+
+Dependencies:
+* Python (Anaconda)
+* scikit learn
+* opencv
+
 <pre>
-Facial Recognition System
+Face Recognition System
 
 usage: app.py [-h] [-a name] [-c path] [-d name] [-l] [-r] [-x]
 
@@ -17,3 +24,5 @@ optional arguments:
   -r, --recognise       recognise the face
   -x, --reset           reset the application
 </pre>  
+
+![demo](demo.png)
