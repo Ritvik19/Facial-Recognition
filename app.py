@@ -1,6 +1,15 @@
 import argparse, logging, shelve, os, shutil, pickle, cv2
 import numpy as np
 from sklearn.svm import SVC
+from keras.models import load_model
+
+model_gender = load_model('gender_model.h5')
+model_face_mask = load_model('face_mask_model.h5')
+
+get_scalar = lambda x: x[0] if type(x) == type(np.array([])) else x
+
+get_gender = lambda x : 'male' if x == 0 else 'female'
+get_face_mask = lambda x : 'with_mask' if x == 0 else 'without_mask'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -30,12 +39,13 @@ args = parser.parse_args()
 
 logger.info(args)
 
-def preprocess(img, size=(64, 64)):
+def preprocess(img, size=(64, 64), eq=True):
     if img.shape < size:
         img = cv2.resize(img, size, interpolation=cv2.INTER_CUBIC)
     else:
         img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
-    img = cv2.equalizeHist(img)
+    if eq == True:        
+        img = cv2.equalizeHist(img)
     return img
     
 def prepareDataSet():
@@ -46,9 +56,7 @@ def prepareDataSet():
         for filename in filenames:
             X.append(cv2.imread(os.path.join(folderName,filename), 0))
             y.append(folderName.split('\\')[-1])
-    if len(y) % 250 == 1:
-        X.pop(0)
-        y.pop(0)
+    
     X = np.asarray(X).astype(np.float)
     y = np.asarray(y)
     X /= 255
@@ -105,7 +113,7 @@ elif args.add_face is not None:
             X, y = prepareDataSet()
             model = SVC(kernel='linear', probability=True)
             model.fit(X, y)
-            pickle.dump(model, open(shelfFile['path']+classifier_path, 'wb'))
+            pickle.dump(model, open(classifier_path, 'wb'))
         
         faces.append(args.add_face)
         faces.sort()
@@ -127,7 +135,7 @@ elif args.delete_face is not None:
             X, y = prepareDataSet()
             model = SVC(kernel='linear', probability=True)
             model.fit(X, y)
-            pickle.dump(model, open(shelfFile['path']+classifier_path, 'wb'))
+            pickle.dump(model, open(classifier_path, 'wb'))
     logger.info('Face Deleted Successfully')
     
 # 4 List
@@ -138,7 +146,7 @@ elif args.list == True:
 # 5 Recognise
 elif args.recognise == True:
     logger.info('Recognising Face')
-    model = pickle.load(open(shelfFile['path']+classifier_path, 'rb'))
+    model = pickle.load(open(classifier_path, 'rb'))
     cap = cv2.VideoCapture(0)
     while True:
         ret, frame = cap.read()
@@ -152,11 +160,16 @@ elif args.recognise == True:
             img = img.astype(np.float)
             img /= 255
             img = img.reshape(-1, 64*64)
+            pred = model.predict(img)[0]
             
-            pred = model.predict(img)
+            img_gender = preprocess(frame[y:y+w, x:x+h], size=(96, 96), eq=False).reshape(-1, 96, 96, 3)
+            img_mask = preprocess(gray[y:y+w, x:x+h], size=(96, 96), eq=False).reshape(-1, 96, 96, 1)
+            gender = get_gender(model_gender.predict_classes(img_gender)[0][0])
+            mask = get_face_mask(model_face_mask.predict_classes(img_mask)[0])
+            print(pred, gender, mask)
         try:
-            cv2.putText(frame, pred[0], (x, y),
-                        cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+            cv2.putText(frame, f'{pred} ({(gender)}, {(mask)})', (x, y),
+                        cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 0), 1)
             cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)
         except:
             pass

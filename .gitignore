@@ -2,3 +2,9 @@ app.log
 data.bak
 data.dat
 data.dir
+data
+gender_dataset
+face_mask_dataset
+.ipynb_checkpoints
+*.pkl
+*.h5

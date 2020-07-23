@@ -4,3 +4,5 @@ opencv-contrib-python==3.4.2.16
 scikit-learn==0.20.1
 scipy==1.4.1
 wincertstore==0.2
+tensorflow==2.2.0
+Keras==2.3.1
