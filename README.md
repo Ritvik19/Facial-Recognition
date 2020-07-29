@@ -1,11 +1,11 @@
 # Facial-Recognition
 
-Commandline Interface based Face Recognition System
+Commandline Interface based basic Face Recognition System
 
-Dependencies:
-* Python (Anaconda)
-* scikit learn
-* opencv
+Additional Features:
+* Age Group Classification
+* Face Mask Detection
+* Gender Classification
 
 <pre>
 Face Recognition System
@@ -25,4 +25,6 @@ optional arguments:
   -x, --reset           reset the application
 </pre>  
 
-![demo](demo.png)
+![demo1](demo_1.png)
+
+![demo2](demo_2.png)

@@ -3,13 +3,16 @@ import numpy as np
 from sklearn.svm import SVC
 from keras.models import load_model
 
-model_gender = load_model('gender_model.h5')
-model_face_mask = load_model('face_mask_model.h5')
+model_age = load_model('Age-Classification/age_mobilenet.h5')
+model_face_mask = load_model('Face-Mask-Detection/face_mask_mobilenet.h5')
+model_gender = load_model('Gender-Classification/gender_mobilenet.h5')
 
 get_scalar = lambda x: x[0] if type(x) == type(np.array([])) else x
 
 get_gender = lambda x : 'male' if x == 0 else 'female'
 get_face_mask = lambda x : 'with_mask' if x == 0 else 'without_mask'
+get_age = lambda x : "middle_aged" if x == 0 else "young" if x == 2 else "old"
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -162,14 +165,19 @@ elif args.recognise == True:
             img = img.reshape(-1, 64*64)
             pred = model.predict(img)[0]
             
-            img_gender = preprocess(frame[y:y+w, x:x+h], size=(96, 96), eq=False).reshape(-1, 96, 96, 3)
-            img_mask = preprocess(gray[y:y+w, x:x+h], size=(96, 96), eq=False).reshape(-1, 96, 96, 1)
-            gender = get_gender(model_gender.predict_classes(img_gender)[0][0])
-            mask = get_face_mask(model_face_mask.predict_classes(img_mask)[0])
-            print(pred, gender, mask)
+            img_classification = preprocess(frame[y:y+w, x:x+h], size=(96, 96), eq=False).reshape(-1, 96, 96, 3) / 255
+            gender = get_gender(model_gender.predict_classes(img_classification)[0][0])
+            mask = get_face_mask(model_face_mask.predict_classes(img_classification)[0][0])
+            age = get_age(model_age.predict_classes(img_classification)[0])
+            print(
+                pred, 
+                gender, model_gender.predict_classes(img_classification)[0][0],
+                mask, model_face_mask.predict_classes(img_classification)[0][0],
+                age, model_age.predict_classes(img_classification)[0]
+            )
         try:
-            cv2.putText(frame, f'{pred} ({(gender)}, {(mask)})', (x, y),
-                        cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 0), 1)
+            cv2.putText(frame, f'{pred} ({age} {(gender)}, {(mask)})', (x-100, y+h+25),
+                        cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 0, 0), 2)
             cv2.rectangle(frame, (x,y), (x+w,y+h), (0,0,255), 2)
         except:
             pass
